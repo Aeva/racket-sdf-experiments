@@ -5,11 +5,13 @@
 (require "draw.rkt")
 
 
-;; test code
-(bisect
+; test code
+(monty
  (scale
-  (union (sphere #(0 0 0) 40)
-         (sphere #(40 0 0) 20)
-         (sphere #(60 0 0) 10)
-         (sphere #(70 0 0) 7))
- 4))
+  (cut
+   (union (sphere #(0 0 0) 40)
+          (sphere #(40 0 0) 20)
+          (sphere #(60 0 0) 10)
+          (sphere #(70 0 0) 7))
+   (sphere #(-20 0 0) 30))
+  4) 50000)

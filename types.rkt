@@ -10,6 +10,7 @@
          field-combine
          scale
          union
+         cut
          sphere)
 
 
@@ -68,7 +69,7 @@
     (define scaled
       (for/vector ([lane point])
         (* lane factor)))
-    (wrapped scaled))
+    (* (wrapped scaled) amount))
   (indirection-field center extent proc))
 
 
@@ -84,6 +85,16 @@
   (if (eq? more null)
       combined
       (apply union (cons combined more))))
+
+
+; Distance field cut operator.
+(define (cut lhs rhs)
+  (define-values (center extent)
+    (field-combine lhs rhs))
+  
+  (define (proc point)
+    (max (lhs point) (* -1 (rhs point))))
+  (indirection-field center extent proc))
 
 
 ; Sphere distance function type and constructor.

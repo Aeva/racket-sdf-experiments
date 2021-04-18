@@ -2,7 +2,8 @@
 (require racket/draw)
 (require "types.rkt")
 
-(provide bisect)
+(provide bisect
+         monty)
 
 
 (define (bisect field)
@@ -38,4 +39,25 @@
          (draw y)]
         [else (void)]))
     (when scan-start (draw y)))
+  bmp)
+
+
+(define (monty field (iterations 10000) (max-radius +inf.f))
+  (define x-extent (vector-ref (field-extent field) 0))
+  (define y-extent (vector-ref (field-extent field) 1))
+  (define width (+ 1 (* x-extent 2)))
+  (define height (+ 1 (* y-extent 2)))
+  (define bmp (make-bitmap width height))
+  (define ctx (new bitmap-dc% [bitmap bmp]))
+  (send ctx set-brush "black" 'solid)
+  (for ([i (in-range iterations)])
+    (define x (round (* width (random))))
+    (define y (round (* height (random))))
+    (define sample-x (- x x-extent))
+    (define sample-y (- y y-extent))
+    (define sample-at (vector sample-x sample-y 0))
+    (define sample (field sample-at))
+    (when (sample . < . 0)
+      (define r (min (abs sample) max-radius))
+      (send ctx draw-ellipse (- x r) (- y r) (* r 2) (* r 2))))
   bmp)

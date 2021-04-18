@@ -2,16 +2,29 @@
 
 (require "math.rkt")
 
-(provide field
+(provide sample
+         sample-unpack
+         field
          field-extent
          field-center
          field-min
          field-max
          field-combine
+         colorize
          scale
          union
          cut
          sphere)
+
+
+; Value to be returned by distance functions.
+(struct sample (dist color)
+  #:transparent)
+
+
+(define (sample-unpack sample)
+  (values (sample-dist sample)
+          (sample-color sample)))
 
 
 ; Distance function base type.
@@ -20,7 +33,7 @@
   #:transparent
   #:property prop:procedure
   (λ (self point)
-    +inf.f))
+    (sample +inf.f "black")))
 
 
 ; Negative-most corner of a given field.
@@ -54,7 +67,17 @@
   #:transparent
   #:property prop:procedure
   (λ (self point)
-     ((indirection-field-proc self) point)))
+    ((indirection-field-proc self) point)))
+
+
+; Colorize a distance field
+(define (colorize wrapped color)
+  (define center (field-center wrapped))
+  (define extent (field-extent wrapped))
+  (define (proc point)
+    (define dist (sample-dist (wrapped point)))
+    (sample dist color))
+  (indirection-field center extent proc))
 
 
 ; Scale field transform constructor.
@@ -69,7 +92,10 @@
     (define scaled
       (for/vector ([lane point])
         (* lane factor)))
-    (* (wrapped scaled) amount))
+    (define-values
+      (dist color)
+      (sample-unpack (wrapped scaled)))
+    (sample (* dist amount) color))
   (indirection-field center extent proc))
 
 
@@ -79,7 +105,11 @@
     (field-combine lhs rhs))
   
   (define (proc point)
-    (min (lhs point) (rhs point)))
+    (define lhs-sample (lhs point))
+    (define rhs-sample (rhs point))
+    (if ((sample-dist lhs-sample) . <= . (sample-dist rhs-sample))
+        lhs-sample
+        rhs-sample))
   (define combined (indirection-field center extent proc))
 
   (if (eq? more null)
@@ -93,7 +123,10 @@
     (field-combine lhs rhs))
   
   (define (proc point)
-    (max (lhs point) (* -1 (rhs point))))
+    (define-values (lhs-dist lhs-color) (sample-unpack (lhs point)))
+    (define rhs-dist (sample-dist (rhs point)))
+    (define dist (max lhs-dist (* -1 rhs-dist)))
+    (sample dist lhs-color))
   (indirection-field center extent proc))
 
 
@@ -103,7 +136,9 @@
   #:transparent
   #:property prop:procedure
   (λ (self point)
-    (- (distance point (field-center self)) (sphere-field-radius self))))
+    (sample 
+     (- (distance point (field-center self)) (sphere-field-radius self))
+     "black")))
 
 (define (sphere center radius)
   (define extent

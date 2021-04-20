@@ -126,7 +126,7 @@
   bmp)
 
 
-(define (divide-and-monty field (tile-min 32) (monty-iterations 100) (random-split #t) (use-random-color #f))
+(define (divide-and-monty field (tile-min 32) (monty-iterations 100) (random-split #t) (clip-tiles #f) (use-random-color #f))
   (define extent (aabb-flatten (field->aabb field)))
   (define width (+ 1 (exact-ceiling (aabb-width extent))))
   (define height (+ 1 (exact-ceiling (aabb-height extent))))
@@ -146,6 +146,12 @@
       (send ctx set-pen color 0 'solid)
       (send ctx set-brush color 'solid)))
 
+  (define (clip extent)
+    (define-values (x y) (vector->values (vector-sub (swiz (aabb-min extent) 0 1) align)))
+    (define w (aabb-width extent))
+    (define h (aabb-height extent))
+    (send ctx set-clipping-rect x y w h))
+
   (define (monty extent)
     (for ([i (in-range monty-iterations)])
       (define point (aabb-random extent))
@@ -156,6 +162,8 @@
         (when use-random-color
           (set! color (random-color)))
         (set-color color)
+        (when clip-tiles
+          (clip extent))
         (draw-circle ctx
                      (exact-floor img-x)
                      (exact-floor img-y)
@@ -186,6 +194,8 @@
        (when use-random-color
          (set! color (random-color)))
        (set-color color)
+       (when clip-tiles
+          (clip extent))
        (draw-circle ctx
                     (exact-floor img-x)
                     (exact-floor img-y)

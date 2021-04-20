@@ -150,9 +150,11 @@
     (define-values (x y) (vector->values (vector-sub (swiz (aabb-min extent) 0 1) align)))
     (define w (aabb-width extent))
     (define h (aabb-height extent))
-    (send ctx set-clipping-rect x y w h))
+    (send ctx set-clipping-rect (floor x) (floor y) (ceiling w) (ceiling h)))
 
   (define (monty extent)
+    (when clip-tiles
+      (clip extent))
     (for ([i (in-range monty-iterations)])
       (define point (aabb-random extent))
       (define-values (dist color) (sample-unpack (field point)))
@@ -162,8 +164,6 @@
         (when use-random-color
           (set! color (random-color)))
         (set-color color)
-        (when clip-tiles
-          (clip extent))
         (draw-circle ctx
                      (exact-floor img-x)
                      (exact-floor img-y)

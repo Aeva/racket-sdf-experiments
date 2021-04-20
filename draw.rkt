@@ -126,7 +126,7 @@
   bmp)
 
 
-(define (divide-and-monty field (tile-min 32) (monty-iterations 100) (use-random-color #f))
+(define (divide-and-monty field (tile-min 32) (monty-iterations 100) (random-split #t) (use-random-color #f))
   (define extent (aabb-flatten (field->aabb field)))
   (define width (+ 1 (exact-ceiling (aabb-width extent))))
   (define height (+ 1 (exact-ceiling (aabb-height extent))))
@@ -135,6 +135,16 @@
   (define ctx (new bitmap-dc% [bitmap bmp]))
   (define iterations 0)
   (define draws 0)
+  (define aabb-split-fn
+    (if random-split
+        aabb-split-random
+        aabb-split))
+  (define last-color #f)
+  (define (set-color color)
+    (unless (eq? color last-color)
+      (set! last-color color)
+      (send ctx set-pen color 0 'solid)
+      (send ctx set-brush color 'solid)))
 
   (define (monty extent)
     (for ([i (in-range monty-iterations)])
@@ -145,8 +155,7 @@
         (define-values (img-x img-y) (vector->values (vector-sub (swiz point 0 1) align)))
         (when use-random-color
           (set! color (random-color)))
-        (send ctx set-pen color 0 'solid)
-        (send ctx set-brush color 'solid)
+        (set-color color)
         (draw-circle ctx
                      (exact-floor img-x)
                      (exact-floor img-y)
@@ -157,10 +166,10 @@
     (define height (aabb-height extent))
     (define tiles
       (if (height . > . tile-min)
-          (aabb-split extent 1)
+          (aabb-split-fn extent 1)
           (list extent)))
     (when (width . > . tile-min)
-      (set! tiles (apply append (map (lambda (extent) (aabb-split extent 0)) tiles))))
+      (set! tiles (apply append (map (lambda (extent) (aabb-split-fn extent 0)) tiles))))
     (if ((length tiles) . > . 1)
         (map search tiles)
         (monty extent)))
@@ -176,8 +185,7 @@
        (define-values (img-x img-y) (vector->values (vector-sub (swiz tile-center 0 1) align)))
        (when use-random-color
          (set! color (random-color)))
-       (send ctx set-pen color 0 'solid)
-       (send ctx set-brush color 'solid)
+       (set-color color)
        (draw-circle ctx
                     (exact-floor img-x)
                     (exact-floor img-y)

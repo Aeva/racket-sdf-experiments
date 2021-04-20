@@ -21,4 +21,4 @@
    (sphere #(-20 0 0) 30))
   4))
 
-(divide-and-monty test-field 32 100 #t)
+(divide-and-monty test-field 32 50 #t #f)

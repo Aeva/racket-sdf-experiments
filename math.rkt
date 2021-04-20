@@ -2,6 +2,11 @@
 
 (provide swiz
          vector-op
+         vector-add
+         vector-sub
+         vector-mul
+         vector-div
+         vector-mad
          dot
          distance
          vector-mag)
@@ -17,6 +22,27 @@
 (define (vector-op op lhs rhs)
   (for/vector ([a lhs][b rhs])
     (op a b)))
+
+
+(define (vector-add lhs rhs)
+  (vector-op + lhs rhs))
+
+
+(define (vector-sub lhs rhs)
+  (vector-op - lhs rhs))
+
+
+(define (vector-mul lhs rhs)
+  (vector-op * lhs rhs))
+
+
+(define (vector-div lhs rhs)
+  (vector-op / lhs rhs))
+
+
+(define (vector-mad vec-a vec-b vec-c)
+  (for/vector ([a vec-a][b vec-b][c vec-c])
+    (+ (* a b) c)))
 
 
 ; Dot product of two vectors

@@ -25,6 +25,7 @@
          aabb-radius
          aabb-flatten
          aabb-split
+         aabb-split-random
          colorize
          scale
          union
@@ -120,11 +121,11 @@
   (aabb flat-min flat-max))
 
 
-; Split an AABB in half on one axis
-(define (aabb-split old axis)
+; Split an AABB in two.
+(define (aabb-pivot old axis pivot)
   (define old-min (aabb-min old))
   (define old-max (aabb-max old))
-  (define center (aabb-center old))
+  (define center (pivot old))
   (define splice (vector 0 0 0))
   (vector-set! splice axis (exact-round (vector-ref center axis)))
   (define mask (vector 1 1 1))
@@ -132,6 +133,19 @@
   (define new-min (vector-mad old-min mask splice))
   (define new-max (vector-mad old-max mask splice))
   (list (aabb old-min new-max) (aabb new-min old-max)))
+
+
+; Split an AABB in half on one axis
+(define (aabb-split old axis)
+  (aabb-pivot old axis aabb-center))
+
+
+; Split an AABB on one axis with a random pivot.
+(define (aabb-split-random old axis)
+  (aabb-pivot old axis (lambda (aabb)
+                         (vector-lerp (aabb-min aabb)
+                                      (aabb-max aabb)
+                                      (random)))))
 
 
 ; Merge two AABBs.

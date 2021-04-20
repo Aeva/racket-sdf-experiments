@@ -10,7 +10,8 @@
          dot
          distance
          vector-mag
-         lerp)
+         lerp
+         vector-lerp)
 
 
 ; Swizzle a vector
@@ -69,3 +70,10 @@
   (+
    (* lhs (- 1.0 alpha))
    (* rhs alpha)))
+
+
+; Vector lerp
+(define (vector-lerp lhs rhs alpha)
+  (vector-op
+   (lambda (lhs rhs) (lerp lhs rhs alpha))
+   lhs rhs))

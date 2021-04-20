@@ -21,4 +21,4 @@
    (sphere #(-20 0 0) 30))
   4))
 
-(quad-search test-field)
+(quad-search test-field 1 #t)

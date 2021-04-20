@@ -71,7 +71,15 @@
   bmp)
 
 
-(define (quad-search field (tile-min 1))
+(define (random-color)
+  (make-color
+   (random 250)
+   (random 250)
+   (random 250)
+   1.0))
+
+
+(define (quad-search field (tile-min 1) (use-random-color #f))
   (define extent (aabb-flatten (field->aabb field)))
   (define width (+ 1 (exact-ceiling (aabb-width extent))))
   (define height (+ 1 (exact-ceiling (aabb-height extent))))
@@ -102,6 +110,8 @@
       [(and (dist . <= . 0) ((abs dist) . >= . tile-radius))
        (set! draws (+ draws 1))
        (define-values (img-x img-y) (vector->values (vector-sub (swiz tile-center 0 1) align)))
+       (when use-random-color
+         (set! color (random-color)))
        (send ctx set-pen color 0 'solid)
        (send ctx set-brush color 'solid)
        (draw-circle ctx

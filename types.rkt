@@ -21,6 +21,7 @@
          aabb-height
          aabb-depth
          aabb-center
+         aabb-random
          aabb-radius
          aabb-flatten
          aabb-split
@@ -95,6 +96,14 @@
   (for/vector ([min-lane (aabb-min aabb)]
                [max-lane (aabb-max aabb)])
     (+ min-lane (/ (- max-lane min-lane) 2))))
+
+
+; Random interior point
+(define (aabb-random aabb)
+  (vector-op
+   (lambda (lhs rhs) (lerp lhs rhs (random)))
+   (aabb-min aabb)
+   (aabb-max aabb)))
 
 
 ; Distance from AABB center to corner.

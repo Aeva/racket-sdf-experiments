@@ -21,4 +21,4 @@
    (sphere #(-20 0 0) 30))
   4))
 
-(quad-search test-field 1 #t)
+(divide-and-monty test-field 32 100 #t)

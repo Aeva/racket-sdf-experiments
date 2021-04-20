@@ -5,7 +5,8 @@
 
 (provide scanline
          monty
-         quad-search)
+         quad-search
+         divide-and-monty)
 
 
 (define (scanline field)
@@ -73,9 +74,9 @@
 
 (define (random-color)
   (make-color
-   (random 250)
-   (random 250)
-   (random 250)
+   (random 200)
+   (random 200)
+   (random 200)
    1.0))
 
 
@@ -121,5 +122,75 @@
       [else (split extent)]))
   (search extent)
   (display "Binary search draw finished in ")(display iterations)(display " iterations and drew ")
+  (display draws)(display " circles.\n")
+  bmp)
+
+
+(define (divide-and-monty field (tile-min 32) (monty-iterations 100) (use-random-color #f))
+  (define extent (aabb-flatten (field->aabb field)))
+  (define width (+ 1 (exact-ceiling (aabb-width extent))))
+  (define height (+ 1 (exact-ceiling (aabb-height extent))))
+  (define align (swiz (aabb-min extent) 0 1))
+  (define bmp (make-bitmap width height))
+  (define ctx (new bitmap-dc% [bitmap bmp]))
+  (define iterations 0)
+  (define draws 0)
+
+  (define (monty extent)
+    (for ([i (in-range monty-iterations)])
+      (define point (aabb-random extent))
+      (define-values (dist color) (sample-unpack (field point)))
+      (when (dist . <= . 0)
+        (set! draws (+ draws 1))
+        (define-values (img-x img-y) (vector->values (vector-sub (swiz point 0 1) align)))
+        (when use-random-color
+          (set! color (random-color)))
+        (send ctx set-pen color 0 'solid)
+        (send ctx set-brush color 'solid)
+        (draw-circle ctx
+                     (exact-floor img-x)
+                     (exact-floor img-y)
+                     (abs dist)))))
+
+  (define (split extent)
+    (define width (aabb-width extent))
+    (define height (aabb-height extent))
+    (define tiles
+      (if (height . > . tile-min)
+          (aabb-split extent 1)
+          (list extent)))
+    (when (width . > . tile-min)
+      (set! tiles (apply append (map (lambda (extent) (aabb-split extent 0)) tiles))))
+    (if ((length tiles) . > . 1)
+        (map search tiles)
+        (monty extent)))
+
+  (define (search extent)
+    (set! iterations (+ iterations 1))
+    (define tile-radius (aabb-radius extent))
+    (define tile-center (aabb-center extent))
+    (define-values (dist color) (sample-unpack (field tile-center)))
+    (cond
+      [(and (dist . <= . 0) ((abs dist) . >= . tile-radius))
+       (set! draws (+ draws 1))
+       (define-values (img-x img-y) (vector->values (vector-sub (swiz tile-center 0 1) align)))
+       (when use-random-color
+         (set! color (random-color)))
+       (send ctx set-pen color 0 'solid)
+       (send ctx set-brush color 'solid)
+       (draw-circle ctx
+                    (exact-floor img-x)
+                    (exact-floor img-y)
+                    (min tile-radius (abs dist)))]
+      [else (split extent)]))
+  (define start (current-inexact-milliseconds))
+  (search extent)
+  (define stop (current-inexact-milliseconds))
+  (define delta (/ (round (- stop start)) 1000.0))
+  (display "Binary search draw finished in ")
+  (display delta)
+  (display " seconds and took ")
+  (display iterations)
+  (display " iterations to draw ")
   (display draws)(display " circles.\n")
   bmp)

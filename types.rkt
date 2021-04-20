@@ -27,6 +27,7 @@
          aabb-split
          aabb-split-random
          colorize
+         pad-extent
          scale
          union
          cut
@@ -185,6 +186,16 @@
   (define (proc point)
     (define dist (sample-dist (wrapped point)))
     (sample dist color))
+  (indirection-field center extent proc))
+
+
+; Pad a distance field's extent
+(define (pad-extent wrapped padding)
+  (define pad (* 2 padding))
+  (define center (field-center wrapped))
+  (define extent (vector-add (vector pad pad pad) (field-extent wrapped)))
+  (define (proc point)
+    (wrapped point))
   (indirection-field center extent proc))
 
 

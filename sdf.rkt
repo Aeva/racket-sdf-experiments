@@ -12,13 +12,14 @@
 
 ; test code
 (define test-field
- (scale
-  (cut
-   (union (sphere #(0 0 0) 40)
-          (colorize (sphere #(40 0 0) 20) (named-color "orange"))
-          (sphere #(60 0 0) 10)
-          (sphere #(70 0 0) 7))
-   (sphere #(-20 0 0) 30))
-  4))
+  (pad-extent
+   (scale
+    (cut
+     (union (sphere #(0 0 0) 40)
+            (sphere #(40 0 0) 20)
+            (sphere #(60 0 0) 10)
+            (sphere #(70 0 0) 7))
+     (sphere #(-20 0 0) 30))
+    4) 10))
 
-(divide-and-monty test-field 32 50 #t #f #f)
+(divide-and-monty test-field 8 1 #t #f #f)

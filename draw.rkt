@@ -126,7 +126,7 @@
   bmp)
 
 
-(define (divide-and-monty field (tile-min 32) (monty-iterations 100) (random-split #t) (clip-tiles #f) (use-random-color #f))
+(define (divide-and-monty field (tile-min 32) (monty-iterations 100) (random-split #t) (last-is-random #f) (use-random-color #f) (clip-tiles #f))
   (define extent (aabb-flatten (field->aabb field)))
   (define width (+ 1 (exact-ceiling (aabb-width extent))))
   (define height (+ 1 (exact-ceiling (aabb-height extent))))
@@ -135,10 +135,13 @@
   (define ctx (new bitmap-dc% [bitmap bmp]))
   (define iterations 0)
   (define draws 0)
+  (define clear-color (make-color 255 0 255 1.0))
+  
   (define aabb-split-fn
     (if random-split
         aabb-split-random
         aabb-split))
+  
   (define last-color #f)
   (define (set-color color)
     (unless (eq? color last-color)
@@ -156,18 +159,21 @@
     (when clip-tiles
       (clip extent))
     (for ([i (in-range monty-iterations)])
-      (define point (aabb-random extent))
+      (define point (if last-is-random (aabb-random extent) (aabb-center extent)))
       (define-values (dist color) (sample-unpack (field point)))
-      (when (dist . <= . 0)
-        (set! draws (+ draws 1))
-        (define-values (img-x img-y) (vector->values (vector-sub (swiz point 0 1) align)))
-        (when use-random-color
-          (set! color (random-color)))
-        (set-color color)
-        (draw-circle ctx
-                     (exact-floor img-x)
-                     (exact-floor img-y)
-                     (abs dist)))))
+      (define-values (img-x img-y) (vector->values (vector-sub (swiz point 0 1) align)))
+      (set! draws (+ draws 1))
+      (if (dist . <= . 0)
+          (begin
+            (when use-random-color
+              (set! color (random-color)))
+            (set-color color)
+            )
+          (set-color clear-color))
+      (draw-circle ctx
+                   (exact-floor img-x)
+                   (exact-floor img-y)
+                   (abs dist))))
 
   (define (split extent)
     (define width (aabb-width extent))
@@ -187,25 +193,32 @@
     (define tile-radius (aabb-radius extent))
     (define tile-center (aabb-center extent))
     (define-values (dist color) (sample-unpack (field tile-center)))
+    (define-values (img-x img-y) (vector->values (vector-sub (swiz tile-center 0 1) align)))
     (cond
       [(and (dist . <= . 0) ((abs dist) . >= . tile-radius))
        (set! draws (+ draws 1))
-       (define-values (img-x img-y) (vector->values (vector-sub (swiz tile-center 0 1) align)))
        (when use-random-color
          (set! color (random-color)))
        (set-color color)
        (when clip-tiles
-          (clip extent))
+         (clip extent))
        (draw-circle ctx
                     (exact-floor img-x)
                     (exact-floor img-y)
                     (min tile-radius (abs dist)))]
+      [(dist . >= . tile-radius)
+       (set! draws (+ draws 1))
+       (set-color clear-color)
+       (draw-circle ctx
+                    (exact-floor img-x)
+                    (exact-floor img-y)
+                    (min tile-radius dist))]
       [else (split extent)]))
   (define start (current-inexact-milliseconds))
   (search extent)
   (define stop (current-inexact-milliseconds))
   (define delta (/ (round (- stop start)) 1000.0))
-  (display "Binary search draw finished in ")
+  (display "Draw finished in ")
   (display delta)
   (display " seconds and took ")
   (display iterations)

@@ -9,7 +9,8 @@
          vector-mad
          dot
          distance
-         vector-mag)
+         vector-mag
+         lerp)
 
 
 ; Swizzle a vector
@@ -61,3 +62,10 @@
 ; Geometric length of a vector
 (define (vector-mag vec)
   (sqrt (dot vec vec)))
+
+
+; Scalar lerp
+(define (lerp lhs rhs alpha)
+  (+
+   (* lhs (- 1.0 alpha))
+   (* rhs alpha)))

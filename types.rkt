@@ -3,13 +3,27 @@
 (require "math.rkt")
 
 (provide sample
+         sample-dist
+         sample-color
          sample-unpack
          field
          field-extent
          field-center
          field-min
          field-max
+         aabb
+         aabb-min
+         aabb-max
+         aabb-merge
          field-combine
+         field->aabb
+         aabb-width
+         aabb-height
+         aabb-depth
+         aabb-center
+         aabb-radius
+         aabb-flatten
+         aabb-split
          colorize
          scale
          union
@@ -46,18 +60,89 @@
   (vector-op + (field-center field) (field-extent field)))
 
 
+; Axially Aligned Bounding Box.
+(struct aabb (min max)
+  #:transparent)
+
+
+; Create an AABB from a field object.
+(define (field->aabb field)
+  (aabb (field-min field)
+        (field-max field)))
+
+
+; Functions for extracting AABB dimensions.
+(define (aabb-width aabb)
+  (distance
+   (swiz (aabb-min aabb) 0)
+   (swiz (aabb-max aabb) 0)))
+
+
+(define (aabb-height aabb)
+  (distance
+   (swiz (aabb-min aabb) 1)
+   (swiz (aabb-max aabb) 1)))
+
+
+(define (aabb-depth aabb)
+  (distance
+   (swiz (aabb-min aabb) 2)
+   (swiz (aabb-max aabb) 2)))
+
+
+; AABB center point
+(define (aabb-center aabb)
+  (for/vector ([min-lane (aabb-min aabb)]
+               [max-lane (aabb-max aabb)])
+    (+ min-lane (/ (- max-lane min-lane) 2))))
+
+
+; Distance from AABB center to corner.
+(define (aabb-radius aabb)
+  (distance (aabb-min aabb) (aabb-center aabb)))
+
+
+; Zeros the Z axis from an AABB.
+(define (aabb-flatten old)
+  (define flat-min (aabb-min old))
+  (define flat-max (aabb-max old))
+  (vector-set! flat-min 2 0)
+  (vector-set! flat-max 2 0)
+  (aabb flat-min flat-max))
+
+
+; Split an AABB in half on one axis
+(define (aabb-split old axis)
+  (define old-min (aabb-min old))
+  (define old-max (aabb-max old))
+  (define center (aabb-center old))
+  (define splice (vector 0 0 0))
+  (vector-set! splice axis (exact-round (vector-ref center axis)))
+  (define mask (vector 1 1 1))
+  (vector-set! mask axis 0)
+  (define new-min (vector-mad old-min mask splice))
+  (define new-max (vector-mad old-max mask splice))
+  (list (aabb old-min new-max) (aabb new-min old-max)))
+
+
+; Merge two AABBs.
+(define (aabb-merge lhs rhs)
+  (aabb
+   (vector-op min (aabb-min lhs) (aabb-min rhs))
+   (vector-op max (aabb-max lhs) (aabb-max rhs))))
+
+
 ; Combine the extents of two fields, and generate a new center.
 (define (field-combine lhs rhs)
-  (define min-corner
-    (vector-op min (field-min lhs) (field-min rhs)))
-  (define max-corner
-    (vector-op max (field-max lhs) (field-max rhs)))
+  (define merged (aabb-merge (field->aabb lhs) (field->aabb rhs)))
+  (define (realign span) (* span 0.5))
   (define extent
-    (for/vector ([min-lane min-corner]
-                 [max-lane max-corner])
-      (/ (- max-lane min-lane) 2)))
+    (vector
+     (realign (aabb-width merged))
+     (realign (aabb-height merged))
+     (realign (aabb-depth merged))))
   (define center
-    (vector-op + min-corner extent))
+    (vector-op + (aabb-min merged) extent))
   (values center extent))
 
 
@@ -82,7 +167,9 @@
 
 ; Scale field transform constructor.
 (define (scale wrapped amount)
-  (define center (field-center wrapped))
+  (define center
+    (for/vector ([lane (field-center wrapped)])
+      (* lane amount)))
   (define extent
     (for/vector ([lane (field-extent wrapped)])
       (* lane amount)))
@@ -141,7 +228,5 @@
      "black")))
 
 (define (sphere center radius)
-  (define extent
-    (for/vector ([lane center])
-      (+ lane radius)))
+  (define extent (vector radius radius radius))
   (sphere-field center extent radius))

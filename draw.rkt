@@ -87,6 +87,8 @@
   (define align (swiz (aabb-min extent) 0 1))
   (define bmp (make-bitmap width height))
   (define ctx (new bitmap-dc% [bitmap bmp]))
+  (send ctx set-background (make-color 0 0 0 0.0))
+  (send ctx clear)
   (define iterations 0)
   (define draws 0)
 
@@ -131,11 +133,19 @@
   (define width (+ 1 (exact-ceiling (aabb-width extent))))
   (define height (+ 1 (exact-ceiling (aabb-height extent))))
   (define align (swiz (aabb-min extent) 0 1))
-  (define bmp (make-bitmap width height))
-  (define ctx (new bitmap-dc% [bitmap bmp]))
   (define iterations 0)
   (define draws 0)
-  (define clear-color (make-color 255 0 255 1.0))
+
+  (define bmp (make-bitmap width height))
+  (define ctx (new bitmap-dc% [bitmap bmp]))
+  (send ctx set-smoothing 'smoothed)
+
+  (define mask-bmp (make-monochrome-bitmap width height))
+  (define mask-ctx (new bitmap-dc% [bitmap mask-bmp]))
+  (send mask-ctx set-pen (make-color 255 255 255) 0 'solid)
+  (send mask-ctx set-brush (make-color 255 255 255) 'solid)
+  (send mask-ctx set-background (make-color 0 0 0))
+  (send mask-ctx clear)
   
   (define aabb-split-fn
     (if random-split
@@ -168,12 +178,15 @@
             (when use-random-color
               (set! color (random-color)))
             (set-color color)
-            )
-          (set-color clear-color))
-      (draw-circle ctx
-                   (exact-floor img-x)
-                   (exact-floor img-y)
-                   (abs dist))))
+            (draw-circle ctx
+                         (exact-floor img-x)
+                         (exact-floor img-y)
+                         (abs dist)))
+          (begin
+            (draw-circle mask-ctx
+                         (exact-floor img-x)
+                         (exact-floor img-y)
+                         (abs dist))))))
 
   (define (split extent)
     (define width (aabb-width extent))
@@ -208,8 +221,7 @@
                     (min tile-radius (abs dist)))]
       [(dist . >= . tile-radius)
        (set! draws (+ draws 1))
-       (set-color clear-color)
-       (draw-circle ctx
+       (draw-circle mask-ctx
                     (exact-floor img-x)
                     (exact-floor img-y)
                     (min tile-radius dist))]
@@ -224,4 +236,37 @@
   (display iterations)
   (display " iterations to draw ")
   (display draws)(display " circles.\n")
-  bmp)
+
+  (define blur-start (current-inexact-milliseconds))
+  (define blur-bmp (make-bitmap width height))
+  (define blur-ctx (new bitmap-dc% [bitmap blur-bmp]))
+  (send blur-ctx set-background (make-color 0 0 0 0.0))
+  (send blur-ctx clear)
+  (send blur-ctx set-alpha (/ 1 20))
+
+  (define (blur amount)
+    (define (blur-inner x y)
+      (send blur-ctx draw-bitmap bmp x y 'opaque (make-color 255 255 255)))
+    (define pos amount)
+    (define neg (* -1 pos))
+    (blur-inner neg 0)
+    (blur-inner pos 0)
+    (blur-inner 0 neg)
+    (blur-inner 0 pos))
+  (blur 1)
+  (blur 2)
+  (blur 4)
+  (blur 8)
+  (blur 16)
+
+  (define final-bmp (make-bitmap width height))
+  (define final-ctx (new bitmap-dc% [bitmap final-bmp]))
+  (send final-ctx draw-bitmap blur-bmp 0 0 'opaque (make-color 255 255 255) mask-bmp)
+  (send final-ctx draw-bitmap bmp 0 0)
+  (define blur-stop (current-inexact-milliseconds))
+  (define blur-delta (/ (round (- blur-stop blur-start)) 1000.0))
+  (display "Blur took ")
+  (display blur-delta)
+  (display " seconds.\n")
+
+  final-bmp)

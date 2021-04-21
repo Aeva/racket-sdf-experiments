@@ -17,9 +17,10 @@
     (cut
      (union (sphere #(0 0 0) 40)
             (sphere #(40 0 0) 20)
-            (sphere #(60 0 0) 10)
+            (colorize (sphere #(60 0 0) 10) "orange")
             (sphere #(70 0 0) 7))
-     (sphere #(-20 0 0) 30))
+     (sphere #(-20 0 10) 30))
     4) 10))
 
-(divide-and-monty test-field 8 1 #t #f #f)
+;(divide-and-monty test-field)
+(orthographic-box test-field 10)

@@ -4,7 +4,8 @@
 (require "types.rkt")
 
 (provide scanline
-         divide-and-monty)
+         divide-and-monty
+         orthographic-box)
 
 
 ; Slow but accurate.
@@ -114,7 +115,7 @@
   final-bmp)
 
 
-(define (divide-and-monty field)
+(define (divide-and-monty field (layer 0))
   ; Parameters with reasonable defaults that probably don't need to be exposed anymore.
   (define tile-min 8)
   (define monty-iterations 1)
@@ -129,7 +130,7 @@
   (define draws 0)
 
   ; Common image parameters and starting tile extent.
-  (define extent (aabb-flatten (field->aabb field)))
+  (define extent (aabb-flatten (field->aabb field) layer))
   (define width (+ 1 (exact-ceiling (aabb-width extent))))
   (define height (+ 1 (exact-ceiling (aabb-height extent))))
 
@@ -256,3 +257,44 @@
   ; Fill the "low confidence" area between the positive and negative images
   ; by blurring the positive into the non-masked area.
   (blur-bmp bmp mask-bmp))
+
+
+(define (orthographic-box field approximate-spacing (renderer divide-and-monty) (tint (make-color 255 255 255)))
+  (define extent (field->aabb field))
+  (define width (+ 1 (exact-ceiling (aabb-width extent))))
+  (define height (+ 1 (exact-ceiling (aabb-height extent))))
+  (define depth (+ 1 (exact-ceiling (aabb-depth extent))))
+  (define slices (ceiling (/ depth approximate-spacing)))
+  (define start-z (vector-ref (aabb-min extent) 2))
+  (define stop-z (vector-ref (aabb-max extent) 2))
+  (define tint-alpha (/ 1 slices))
+
+  (define bmp (make-bitmap width height))
+  (define ctx (new bitmap-dc% [bitmap bmp]))
+
+  (send ctx set-pen tint 0 'solid)
+  (send ctx set-brush tint 'solid)
+  (send ctx set-background tint)
+  (send ctx clear)
+
+  (define start (current-inexact-milliseconds))
+
+  (for ([i (in-range slices)])
+    (define alpha (/ i (- slices 1)))
+    (define z (lerp start-z stop-z alpha))
+    (define layer (renderer field z))
+    (send ctx draw-bitmap layer 0 0)
+    (unless (eq? z stop-z)
+      (send ctx set-alpha tint-alpha)
+      (send ctx draw-rectangle 0 0 width height)
+      (send ctx set-alpha 1.0)))
+
+  (define stop (current-inexact-milliseconds))
+  (define delta (/ (round (- stop start)) 1000.0))
+
+  (display "Drew ")
+  (display slices)
+  (display " layers in ")
+  (display delta)
+  (display " seconds.\n")
+  bmp)

@@ -114,11 +114,11 @@
 
 
 ; Zeros the Z axis from an AABB.
-(define (aabb-flatten old)
+(define (aabb-flatten old (fill-z 0))
   (define flat-min (aabb-min old))
   (define flat-max (aabb-max old))
-  (vector-set! flat-min 2 0)
-  (vector-set! flat-max 2 0)
+  (vector-set! flat-min 2 fill-z)
+  (vector-set! flat-max 2 fill-z)
   (aabb flat-min flat-max))
 
 

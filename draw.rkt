@@ -4,11 +4,10 @@
 (require "types.rkt")
 
 (provide scanline
-         monty
-         quad-search
          divide-and-monty)
 
 
+; Slow but accurate.
 (define (scanline field)
   (define x-extent (vector-ref (field-extent field) 0))
   (define y-extent (vector-ref (field-extent field) 1))
@@ -49,29 +48,6 @@
   (send ctx draw-ellipse (- x r) (- y r) (* r 2) (* r 2)))
 
 
-(define (monty field (iterations 10000) (max-radius +inf.f))
-  (define extent (aabb-flatten (field->aabb field)))
-  (define width (+ 1 (exact-round (aabb-width extent))))
-  (define height (+ 1 (exact-round (aabb-height extent))))
-  (define bmp (make-bitmap width height))
-  (define ctx (new bitmap-dc% [bitmap bmp]))
-  (define last-color #f)
-  (for ([i (in-range iterations)])
-    (define img-x (round (* width (random))))
-    (define img-y (round (* height (random))))
-    (define point
-      (vector-mad #(1 1 0) (aabb-min extent) (vector img-x img-y 0)))
-    (define-values (dist color) (sample-unpack (field point)))
-    (unless (eq? color last-color)
-      (send ctx set-pen color 0 'solid)
-      (send ctx set-brush color 'solid)
-      (set! last-color color))
-    (when (dist . < . 0)
-      (define r (min (abs dist) max-radius))
-      (draw-circle ctx img-x img-y r)))
-  bmp)
-
-
 (define (random-color)
   (make-color
    (random 200)
@@ -80,86 +56,56 @@
    1.0))
 
 
-(define (quad-search field (tile-min 1) (use-random-color #f))
-  (define extent (aabb-flatten (field->aabb field)))
-  (define width (+ 1 (exact-ceiling (aabb-width extent))))
-  (define height (+ 1 (exact-ceiling (aabb-height extent))))
-  (define align (swiz (aabb-min extent) 0 1))
-  (define bmp (make-bitmap width height))
-  (define ctx (new bitmap-dc% [bitmap bmp]))
-  (send ctx set-background (make-color 0 0 0 0.0))
-  (send ctx clear)
-  (define iterations 0)
-  (define draws 0)
-
-  (define (split extent)
-    (define width (aabb-width extent))
-    (define height (aabb-height extent))
-    (define tiles
-      (if (height . > . tile-min)
-          (aabb-split extent 1)
-          (list extent)))
-    (when (width . > . tile-min)
-      (set! tiles (apply append (map (lambda (extent) (aabb-split extent 0)) tiles))))
-    (when ((length tiles) . > . 1)
-      (map search tiles)))
-
-  (define (search extent)
-    (set! iterations (+ iterations 1))
-    (define tile-radius (aabb-radius extent))
-    (define tile-center (aabb-center extent))
-    (define-values (dist color) (sample-unpack (field tile-center)))
-    (cond
-      [(and (dist . <= . 0) ((abs dist) . >= . tile-radius))
-       (set! draws (+ draws 1))
-       (define-values (img-x img-y) (vector->values (vector-sub (swiz tile-center 0 1) align)))
-       (when use-random-color
-         (set! color (random-color)))
-       (send ctx set-pen color 0 'solid)
-       (send ctx set-brush color 'solid)
-       (draw-circle ctx
-                    (exact-floor img-x)
-                    (exact-floor img-y)
-                    (min tile-radius (abs dist)))]
-      [else (split extent)]))
-  (search extent)
-  (display "Binary search draw finished in ")(display iterations)(display " iterations and drew ")
-  (display draws)(display " circles.\n")
-  bmp)
-
-
 (define (blur-bmp positive negative)
+  ; positive is probably RGBA
+  ; negative is probably monochrome
+
   (define start (current-inexact-milliseconds))
 
+  ; Common image parameters for intermediaries.
   (define width (send positive get-width))
   (define height (send positive get-height))
 
+  ; Intermediary where the positive will be accumulated w/ jitter.
   (define blur-bmp (make-bitmap width height))
   (define blur-ctx (new bitmap-dc% [bitmap blur-bmp]))
   (send blur-ctx set-background (make-color 0 0 0 0.0))
   (send blur-ctx clear)
+
+  ; Weighting factor determined by the number of times the positive
+  ; is drawn into blur-bpm
   (send blur-ctx set-alpha (/ 1 20))
 
+  ; Accumulate the positive by some jitter amount.
   (define (blur amount)
     (define (blur-inner x y)
-      (send blur-ctx draw-bitmap positive x y 'opaque (make-color 255 255 255)))
+      (send blur-ctx draw-bitmap positive x y))
     (define pos amount)
     (define neg (* -1 pos))
     (blur-inner neg 0)
     (blur-inner pos 0)
     (blur-inner 0 neg)
     (blur-inner 0 pos))
+
   (blur 1)
   (blur 2)
   (blur 4)
   (blur 8)
   (blur 16)
 
+  ; Target for combining the postiive, negative, and blur-bmp images.
   (define final-bmp (make-bitmap width height))
   (define final-ctx (new bitmap-dc% [bitmap final-bmp]))
+
+  ; Draw the blurred image masked by the negative to prevent drawing into
+  ; regions where we know definitely are negative space.
   (send final-ctx draw-bitmap blur-bmp 0 0 'opaque (make-color 255 255 255) negative)
+
+  ; Draw the positive image on top of the blurred image to preserve detail
+  ; in the regions we know are definitely solid.
   (send final-ctx draw-bitmap positive 0 0)
 
+  ; Print some stats.
   (define stop (current-inexact-milliseconds))
   (define delta (/ (round (- stop start)) 1000.0))
   (display "Blur took ")
@@ -168,53 +114,71 @@
   final-bmp)
 
 
-(define (divide-and-monty field (tile-min 32) (monty-iterations 100) (random-split #t) (last-is-random #f) (use-random-color #f) (clip-tiles #f))
-  (define extent (aabb-flatten (field->aabb field)))
-  (define width (+ 1 (exact-ceiling (aabb-width extent))))
-  (define height (+ 1 (exact-ceiling (aabb-height extent))))
-  (define align (swiz (aabb-min extent) 0 1))
+(define (divide-and-monty field)
+  ; Parameters with reasonable defaults that probably don't need to be exposed anymore.
+  (define tile-min 8)
+  (define monty-iterations 1)
+  (define random-split #t)
+  (define last-is-random #t)
+
+  ; Used for debugging.
+  (define use-random-color #f)
+
+  ; Used for profiling.
   (define iterations 0)
   (define draws 0)
 
+  ; Common image parameters and starting tile extent.
+  (define extent (aabb-flatten (field->aabb field)))
+  (define width (+ 1 (exact-ceiling (aabb-width extent))))
+  (define height (+ 1 (exact-ceiling (aabb-height extent))))
+
+  ; Used to map spacial coordinates back to image coordinates.
+  (define align (swiz (aabb-min extent) 0 1))
+
+  ; Drawing context for dist <= 0 matches (solids).
   (define bmp (make-bitmap width height))
   (define ctx (new bitmap-dc% [bitmap bmp]))
   (send ctx set-smoothing 'smoothed)
 
+  ; Drawing context for dist > 0 matches (empty space).
   (define mask-bmp (make-monochrome-bitmap width height))
   (define mask-ctx (new bitmap-dc% [bitmap mask-bmp]))
   (send mask-ctx set-pen (make-color 255 255 255) 0 'solid)
   (send mask-ctx set-brush (make-color 255 255 255) 'solid)
   (send mask-ctx set-background (make-color 0 0 0))
   (send mask-ctx clear)
-  
-  (define aabb-split-fn
-    (if random-split
-        aabb-split-random
-        aabb-split))
-  
+
   (define last-color #f)
+  ; Sets the color for the primary drawing context.
   (define (set-color color)
+    ; The redundant state elimination here makes a massive difference on perf.
     (unless (eq? color last-color)
       (set! last-color color)
       (send ctx set-pen color 0 'solid)
       (send ctx set-brush color 'solid)))
 
-  (define (clip extent)
-    (define-values (x y) (vector->values (vector-sub (swiz (aabb-min extent) 0 1) align)))
-    (define w (aabb-width extent))
-    (define h (aabb-height extent))
-    (send ctx set-clipping-rect (floor x) (floor y) (ceiling w) (ceiling h)))
+  ; Selects the tile splitting function.
+  (define aabb-split-fn
+    (if random-split
+        aabb-split-random
+        aabb-split))
 
-  (define (monty extent)
-    (when clip-tiles
-      (clip extent))
+  ; Selects the small tile sampling point function.
+  (define point-fn (if last-is-random aabb-random aabb-center))
+
+  ; Called when a tile can't be divided any further.  This will then sample a
+  ; final point somewhere in the tile, and then either draw a circle in the
+  ; solid bitmap or into the mask bitmap.
+  (define (partial-coverage extent)
     (for ([i (in-range monty-iterations)])
-      (define point (if last-is-random (aabb-random extent) (aabb-center extent)))
+      (define point (point-fn extent))
       (define-values (dist color) (sample-unpack (field point)))
       (define-values (img-x img-y) (vector->values (vector-sub (swiz point 0 1) align)))
       (set! draws (+ draws 1))
       (if (dist . <= . 0)
           (begin
+            ; Draw into the solid bitmap.
             (when use-random-color
               (set! color (random-color)))
             (set-color color)
@@ -223,24 +187,32 @@
                          (exact-floor img-y)
                          (abs dist)))
           (begin
+            ; Draw into the mask bitmap.
             (draw-circle mask-ctx
                          (exact-floor img-x)
                          (exact-floor img-y)
                          (abs dist))))))
 
+  ; Called to split a tile in half or into fourths, and then recurse back into "search".
+  ; If the tile can't be split any further, then this will call "partial-coverage" instead.
   (define (split extent)
     (define width (aabb-width extent))
     (define height (aabb-height extent))
     (define tiles
       (if (height . > . tile-min)
+          ; split vertically
           (aabb-split-fn extent 1)
           (list extent)))
     (when (width . > . tile-min)
+      ; split horizontally
       (set! tiles (apply append (map (lambda (extent) (aabb-split-fn extent 0)) tiles))))
     (if ((length tiles) . > . 1)
         (map search tiles)
-        (monty extent)))
+        (partial-coverage extent)))
 
+  ; Called to start drawing.  If the tile does not overlap an edge, then draw a circle in
+  ; either the solid or mask image.  Otherwise, call "split" to try to divide into more
+  ; tiles and recurse.
   (define (search extent)
     (set! iterations (+ iterations 1))
     (define tile-radius (aabb-radius extent))
@@ -249,23 +221,27 @@
     (define-values (img-x img-y) (vector->values (vector-sub (swiz tile-center 0 1) align)))
     (cond
       [(and (dist . <= . 0) ((abs dist) . >= . tile-radius))
+       ; Tile is entirely within a solid.
        (set! draws (+ draws 1))
        (when use-random-color
          (set! color (random-color)))
        (set-color color)
-       (when clip-tiles
-         (clip extent))
        (draw-circle ctx
                     (exact-floor img-x)
                     (exact-floor img-y)
                     (min tile-radius (abs dist)))]
       [(dist . >= . tile-radius)
+       ; Tile overlaps nothing.
        (set! draws (+ draws 1))
        (draw-circle mask-ctx
                     (exact-floor img-x)
                     (exact-floor img-y)
                     (min tile-radius dist))]
-      [else (split extent)]))
+      [else
+       ; Tile overlaps an edge.
+       (split extent)]))
+
+  ; Generate the positive and negative images, and print some stats.
   (define start (current-inexact-milliseconds))
   (search extent)
   (define stop (current-inexact-milliseconds))
@@ -276,4 +252,7 @@
   (display iterations)
   (display " iterations to draw ")
   (display draws)(display " circles.\n")
+
+  ; Fill the "low confidence" area between the positive and negative images
+  ; by blurring the positive into the non-masked area.
   (blur-bmp bmp mask-bmp))

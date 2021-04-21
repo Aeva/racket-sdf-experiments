@@ -29,9 +29,11 @@
          colorize
          pad-extent
          scale
+         rotate-field
          union
          cut
-         sphere)
+         sphere
+         cube)
 
 
 ; Value to be returned by distance functions.
@@ -220,6 +222,24 @@
   (indirection-field center extent proc))
 
 
+; Rotation functions
+(define (rotate-field wrapped axis radians)
+  (define (rotate vec)
+    (vector-rotate vec axis radians))
+  (define (inv-rotate vec)
+    (vector-rotate vec axis radians))
+
+  (define center (rotate (field-center wrapped)))
+  (define old-extent (field-extent wrapped))
+  (define extent (vector-max (vector-map abs (rotate old-extent))
+                             (vector-map abs (inv-rotate old-extent))))
+  (define (proc point)
+    (define rotated (inv-rotate point))
+    (define-values (dist color) (sample-unpack (wrapped rotated)))
+    (sample dist color))
+  (indirection-field center extent proc))
+
+
 ; Distance field union operator.
 (define (union lhs rhs . more)
   (define-values (center extent)
@@ -264,3 +284,23 @@
 (define (sphere center radius)
   (define extent (vector radius radius radius))
   (sphere-field center extent radius))
+
+
+; Box distance function type and constructor.
+(struct cube-field ()
+  #:super struct:field
+  #:transparent
+  #:property prop:procedure
+  (λ (self point)
+    (define local (vector-sub point (field-center self)))
+    (define within-extent (vector-sub (vector-map abs local) (field-extent self)))
+    (define dist
+      (+ (vector-mag (vector-max within-extent 0))
+         (min (max (vector-ref within-extent 0)
+                   (vector-ref within-extent 1)
+                   (vector-ref within-extent 2))
+              0)))
+    (sample dist "black")))
+
+(define (cube center extent)
+  (cube-field center extent))

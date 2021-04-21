@@ -22,5 +22,13 @@
      (sphere #(-20 0 10) 30))
     4) 10))
 
+(define test-field2
+  (pad-extent
+   (cut
+    (rotate-field
+     (cube #(0 0 0) #(100 100 100))
+     'z 0.78539)
+    (sphere #(0 0 0) 120)) 10))
+
 ;(divide-and-monty test-field)
-(orthographic-box test-field 10)
+(orthographic-box test-field2 10)

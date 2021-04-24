@@ -18,15 +18,50 @@
          vector-rotate)
 
 
-; Swizzle a vector
-(define (swiz vec . lanes)
-  (for/vector ([lane lanes])
-    (vector-ref vec lane)))
+; Helper macro for swiz and swiz-acc.  This translates common
+; lane names to their equivalent index values.
+(define-syntax lane-id
+  (syntax-rules (x y z w r g b a)
+    [(lane-id x) 0]
+    [(lane-id y) 1]
+    [(lane-id z) 2]
+    [(lane-id w) 3]
+    [(lane-id r) 0]
+    [(lane-id g) 1]
+    [(lane-id b) 2]
+    [(lane-id a) 3]
+    [(lane-id fnord) fnord]))
+
+
+; Helper macro for swiz.  This recursively expands the lanes into
+; vector-ref calls, and then passes them into a new vector.
+(define-syntax swiz-acc
+  (syntax-rules ()
+    [(swiz-acc (a ...)) (vector a ...)]
+    [(swiz-acc (a ...) vec lane) (swiz-acc (a ... (vector-ref vec (lane-id lane))))]
+    [(swiz-acc (a ...) vec lane lanes ...) (swiz-acc (a ... (vector-ref vec (lane-id lane))) vec lanes ...)]))
+
+
+; Shader style swizzling for vectors.
+; Usage examples:
+;
+; > (swiz #(0. 1.) x x x y)
+; (vector 0.0 0.0 0.0 1.0)
+;
+; > (define myvec (vector .1 .2 .3 .4))
+; > (swiz myvec x z w y)
+; (vector 0.1 0.3 0.4 0.2)
+(define-syntax swiz
+  (syntax-rules (vector)
+    [(swiz (vector data ...) lanes ...) (swiz #(data ...) lanes ...)]
+    [(swiz #(data ...) lanes ...) (let ([vec (vector data ...)]) (swiz vec lanes ...))]
+    [(swiz vec lane) (swiz-acc ((vector-ref vec (lane-id lane))))]
+    [(swiz vec lane lanes ...) (swiz-acc ((vector-ref vec (lane-id lane))) vec lanes ...)]))
 
 
 ; Lane-wise vector operators
 (define (vector-op op lhs rhs)
-  (for/vector ([a lhs][b rhs])
+  (for/vector #:length (vector-length lhs) ([a lhs][b rhs])
     (op a b)))
 
 
@@ -47,7 +82,7 @@
 
 
 (define (vector-mad vec-a vec-b vec-c)
-  (for/vector ([a vec-a][b vec-b][c vec-c])
+  (for/vector #:length (vector-length vec-a) ([a vec-a][b vec-b][c vec-c])
     (+ (* a b) c)))
 
 
@@ -61,7 +96,7 @@
 
 ; Apply a function to each lane in the vector
 (define (vector-map fn vec)
-  (for/vector ([lane vec])
+  (for/vector #:length (vector-length vec) ([lane vec])
     (fn lane)))
 
 

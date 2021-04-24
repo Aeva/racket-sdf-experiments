@@ -244,7 +244,7 @@
 
   ; Generate the positive and negative images, and print some stats.
   (define start (current-inexact-milliseconds))
-  (search extent)
+  (split extent)
   (define stop (current-inexact-milliseconds))
   (define delta (/ (round (- stop start)) 1000.0))
   (display "Draw finished in ")

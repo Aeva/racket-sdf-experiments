@@ -77,22 +77,22 @@
 
 
 ; Functions for extracting AABB dimensions.
+(define (aabb-dimension aabb lane)
+  (-
+   (vector-ref (aabb-max aabb) lane)
+   (vector-ref (aabb-min aabb) lane)))
+
+
 (define (aabb-width aabb)
-  (distance
-   (swiz (aabb-min aabb) 0)
-   (swiz (aabb-max aabb) 0)))
+  (aabb-dimension aabb 0))
 
 
 (define (aabb-height aabb)
-  (distance
-   (swiz (aabb-min aabb) 1)
-   (swiz (aabb-max aabb) 1)))
+  (aabb-dimension aabb 1))
 
 
 (define (aabb-depth aabb)
-  (distance
-   (swiz (aabb-min aabb) 2)
-   (swiz (aabb-max aabb) 2)))
+  (aabb-dimension aabb 2))
 
 
 ; AABB center point

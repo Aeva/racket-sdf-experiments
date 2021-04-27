@@ -1,6 +1,7 @@
 #lang racket
 
 (require racket/draw)
+(require racket/format)
 (require "math.rkt")
 (require "types.rkt")
 (require "draw.rkt")
@@ -22,7 +23,7 @@
    4))
 
 
-(define test-field2
+(define (test-field2 spin)
   (rotate-field
    (rotate-field
     (union
@@ -33,7 +34,12 @@
       (sphere #(0 0 0) 120))
      (colorize (sphere #(0 0 0) 70) "violet"))
     'x (degrees->radians 67))
-   'z (degrees->radians 0)))
+   'y (degrees->radians spin)))
 
 
-(orthographic-box test-field2 10)
+(define (test-frame (frame 0))
+  (orthographic-box (test-field2 frame) 5))
+
+(test-frame 18)
+;(animate 20 test-frame)
+         

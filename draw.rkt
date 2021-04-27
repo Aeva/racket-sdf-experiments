@@ -61,6 +61,7 @@
   ; positive is probably RGBA
   ; negative is probably monochrome
 
+  (define print-times #f)
   (define start (current-inexact-milliseconds))
 
   ; Common image parameters for intermediaries.
@@ -108,10 +109,11 @@
 
   ; Print some stats.
   (define stop (current-inexact-milliseconds))
-  (define delta (/ (round (- stop start)) 1000.0))
-  (display "Blur took ")
-  (display delta)
-  (display " seconds.\n")
+  (when print-times
+    (define delta (/ (round (- stop start)) 1000.0))
+    (display "Blur took ")
+    (display delta)
+    (display " seconds.\n"))
   final-bmp)
 
 
@@ -128,6 +130,7 @@
   ; Used for profiling.
   (define iterations 0)
   (define draws 0)
+  (define print-times #f)
 
   ; Common image parameters and starting tile extent.
   (define extent (aabb-flatten (field->aabb field) layer))
@@ -246,13 +249,14 @@
   (define start (current-inexact-milliseconds))
   (split extent)
   (define stop (current-inexact-milliseconds))
-  (define delta (/ (round (- stop start)) 1000.0))
-  (display "Draw finished in ")
-  (display delta)
-  (display " seconds and took ")
-  (display iterations)
-  (display " iterations to draw ")
-  (display draws)(display " circles.\n")
+  (when print-times
+    (define delta (/ (round (- stop start)) 1000.0))
+    (display "Draw finished in ")
+    (display delta)
+    (display " seconds and took ")
+    (display iterations)
+    (display " iterations to draw ")
+    (display draws)(display " circles.\n"))
 
   ; Fill the "low confidence" area between the positive and negative images
   ; by blurring the positive into the non-masked area.
@@ -260,6 +264,8 @@
 
 
 (define (orthographic-box field approximate-spacing (renderer divide-and-monty) (tint (make-color 255 255 255)))
+  (define print-times #t)
+  
   (define extent (field->aabb field))
   (define width (+ 1 (exact-ceiling (aabb-width extent))))
   (define height (+ 1 (exact-ceiling (aabb-height extent))))
@@ -290,11 +296,38 @@
       (send ctx set-alpha 1.0)))
 
   (define stop (current-inexact-milliseconds))
-  (define delta (/ (round (- stop start)) 1000.0))
-
-  (display "Drew ")
-  (display slices)
-  (display " layers in ")
-  (display delta)
-  (display " seconds.\n")
+  (when print-times
+    (define delta (/ (round (- stop start)) 1000.0))
+    (display "Drew ")
+    (display slices)
+    (display " layers in ")
+    (display delta)
+    (display " seconds.\n"))
   bmp)
+
+
+(define (animate frames img-fn)
+  (define width 0)
+  (define height 0)
+  (for ([frame (in-range frames)])
+    (display (~a "rendering frame " (+ 1 frame) "...\n"))
+    (let* ([bmp (img-fn frame)]
+           [framestr (~a frame #:min-width 3 #:align 'right #:left-pad-string "0")]
+           [path (~a "frames/frame " framestr ".png")])
+      (set! width (max width (send bmp get-width)))
+      (set! height (max width (send bmp get-height)))
+      (send bmp save-file path 'png 100)))
+  (display (~a "width: " width ", height: " height "\n"))
+  (for ([frame (in-range frames)])
+    (let* ([framestr (~a frame #:min-width 3 #:align 'right #:left-pad-string "0")]
+           [in-path (~a "frames/frame " framestr ".png")]
+           [out-path (~a "resized/frame " framestr ".png")]
+           [in-bmp (read-bitmap in-path 'png)]
+           [in-w (send in-bmp get-width)]
+           [in-h (send in-bmp get-height)]
+           [out-bmp (make-bitmap width height #f)]
+           [ctx (new bitmap-dc% [bitmap out-bmp])]
+           [x (round (/ (- width in-w) 2))]
+           [y (round (/ (- height in-h) 2))])
+      (send ctx draw-bitmap in-bmp x y)
+      (send out-bmp save-file out-path 'png 100))))

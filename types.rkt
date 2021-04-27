@@ -1,5 +1,6 @@
 #lang racket
 
+(require racket/performance-hint)
 (require "math.rkt")
 
 (provide sample
@@ -227,7 +228,7 @@
   (define (rotate vec)
     (vector-rotate vec axis radians))
   (define (inv-rotate vec)
-    (vector-rotate vec axis radians))
+    (vector-rotate vec axis (* -1 radians)))
 
   (define center (rotate (field-center wrapped)))
   (define old-extent (field-extent wrapped))
